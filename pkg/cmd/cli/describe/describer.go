@@ -11,16 +11,16 @@ import (
 
 	"github.com/docker/docker/pkg/units"
 
-	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	kerrs "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/meta"
-	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/fields"
-	kctl "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 	"github.com/docker/docker/pkg/parsers"
+	kapi "k8s.io/kubernetes/pkg/api"
+	kerrs "k8s.io/kubernetes/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/api/meta"
+	kclient "k8s.io/kubernetes/pkg/client"
+	"k8s.io/kubernetes/pkg/fields"
+	kctl "k8s.io/kubernetes/pkg/kubectl"
+	"k8s.io/kubernetes/pkg/labels"
+	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
 	buildapi "github.com/openshift/origin/pkg/build/api"
@@ -288,6 +288,9 @@ func describeCustomStrategy(s *buildapi.CustomBuildStrategy, out *tabwriter.Writ
 	}
 	if s.ExposeDockerSocket {
 		formatString(out, "Expose Docker Socket", "yes")
+	}
+	if s.ForcePull {
+		formatString(out, "Force Pull", "yes")
 	}
 	if s.PullSecret != nil {
 		formatString(out, "Pull Secret Name", s.PullSecret.Name)
@@ -686,6 +689,7 @@ func (d *TemplateDescriber) DescribeParameters(params []templateapi.Parameter, o
 	for _, p := range params {
 		formatString(out, indent+"Name", p.Name)
 		formatString(out, indent+"Description", p.Description)
+		formatString(out, indent+"Required", p.Required)
 		if len(p.Generate) == 0 {
 			formatString(out, indent+"Value", p.Value)
 			continue

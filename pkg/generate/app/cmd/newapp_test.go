@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/testclient"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/kubelet/dockertools"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 	docker "github.com/fsouza/go-dockerclient"
+	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/client/testclient"
+	"k8s.io/kubernetes/pkg/kubelet/dockertools"
+	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util"
 
 	buildapi "github.com/openshift/origin/pkg/build/api"
 	client "github.com/openshift/origin/pkg/client/testclient"
@@ -1159,13 +1159,14 @@ func dockerBuilderImage() *docker.Image {
 
 func fakeImageStreamSearcher() app.Searcher {
 	client := &client.Fake{
-		ReactFn: func(action testclient.FakeAction) (runtime.Object, error) {
-			switch action.Action {
-			case "get-imagestream":
+		ReactFn: func(action testclient.Action) (runtime.Object, error) {
+			if action.Matches("get", "imagestreams") {
 				return builderImageStream(), nil
-			case "list-imagestreams":
+			}
+			if action.Matches("list", "imagestreams") {
 				return builderImageStreams(), nil
-			case "get-imagestream-image":
+			}
+			if action.Matches("get", "imagestreamimages") {
 				return builderImage(), nil
 			}
 			return nil, nil
@@ -1180,9 +1181,8 @@ func fakeImageStreamSearcher() app.Searcher {
 
 func fakeTemplateSearcher() app.Searcher {
 	client := &client.Fake{
-		ReactFn: func(action testclient.FakeAction) (runtime.Object, error) {
-			switch action.Action {
-			case "list-templates":
+		ReactFn: func(action testclient.Action) (runtime.Object, error) {
+			if action.Matches("list", "templates") {
 				return &templateapi.TemplateList{
 					Items: []templateapi.Template{
 						{

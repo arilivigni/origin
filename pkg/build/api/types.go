@@ -3,8 +3,8 @@ package api
 import (
 	"time"
 
-	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
+	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/util"
 )
 
 const (
@@ -244,6 +244,10 @@ type CustomBuildStrategy struct {
 	// inside the Docker container.
 	// TODO: Allow admins to enforce 'false' for this option
 	ExposeDockerSocket bool
+
+	// ForcePull describes if the controller should configure the build pod to always pull the images
+	// for the builder or only pull if it is not present locally
+	ForcePull bool
 }
 
 // DockerBuildStrategy defines input parameters specific to Docker build.
@@ -352,6 +356,12 @@ type ImageChangeTrigger struct {
 	// LastTriggeredImageID is used internally by the ImageChangeController to save last
 	// used image ID for build
 	LastTriggeredImageID string
+
+	// From is a reference to an ImageStreamTag that will trigger a build when updated
+	// It is optional. If no From is specified, the From image from the build strategy
+	// will be used. Only one ImageChangeTrigger with an empty From reference is allowed in
+	// a build configuration.
+	From *kapi.ObjectReference
 }
 
 // BuildTriggerPolicy describes a policy for a single trigger that results in a new Build.
@@ -449,6 +459,9 @@ type BuildRequest struct {
 
 	// TriggeredByImage is the Image that triggered this build.
 	TriggeredByImage *kapi.ObjectReference
+
+	// From is the reference to the ImageStreamTag that triggered the build.
+	From *kapi.ObjectReference
 }
 
 // BuildLogOptions is the REST options for a build log

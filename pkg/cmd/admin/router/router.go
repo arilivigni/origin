@@ -12,16 +12,16 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
-	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
-	kclientcmd "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/fields"
-	cmdutil "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd/util"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/serviceaccount"
-	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
+	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/errors"
+	kclient "k8s.io/kubernetes/pkg/client"
+	kclientcmd "k8s.io/kubernetes/pkg/client/clientcmd"
+	"k8s.io/kubernetes/pkg/controller/serviceaccount"
+	"k8s.io/kubernetes/pkg/fields"
+	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	"k8s.io/kubernetes/pkg/labels"
+	"k8s.io/kubernetes/pkg/runtime"
+	kutil "k8s.io/kubernetes/pkg/util"
 
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/cmd/util/variable"
@@ -73,11 +73,17 @@ type RouterConfig struct {
 	StatsPort          int
 	StatsPassword      string
 	StatsUsername      string
+	HostNetwork        bool
 }
 
 var errExit = fmt.Errorf("exit")
 
-const defaultLabel = "router=<name>"
+const (
+	defaultLabel = "router=<name>"
+
+	// Default port numbers to expose and bind/listen on.
+	defaultPorts = "80:80,443:443"
+)
 
 // NewCmdRouter implements the OpenShift cli router command
 func NewCmdRouter(f *clientcmd.Factory, parentName, name string, out io.Writer) *cobra.Command {
@@ -85,10 +91,11 @@ func NewCmdRouter(f *clientcmd.Factory, parentName, name string, out io.Writer) 
 		ImageTemplate: variable.NewDefaultImageTemplate(),
 
 		Labels:   defaultLabel,
-		Ports:    "80:80,443:443",
+		Ports:    defaultPorts,
 		Replicas: 1,
 
 		StatsUsername: "admin",
+		HostNetwork:   true,
 	}
 
 	cmd := &cobra.Command{
@@ -121,6 +128,7 @@ func NewCmdRouter(f *clientcmd.Factory, parentName, name string, out io.Writer) 
 	cmd.Flags().IntVar(&cfg.StatsPort, "stats-port", 1936, "If the underlying router implementation can provide statistics this is a hint to expose it on this port.")
 	cmd.Flags().StringVar(&cfg.StatsPassword, "stats-password", cfg.StatsPassword, "If the underlying router implementation can provide statistics this is the requested password for auth.  If not set a password will be generated.")
 	cmd.Flags().StringVar(&cfg.StatsUsername, "stats-user", cfg.StatsUsername, "If the underlying router implementation can provide statistics this is the requested username for auth.")
+	cmd.Flags().BoolVar(&cfg.HostNetwork, "host-network", cfg.HostNetwork, "If true (the default), then use host networking rather than using a separate container network stack.")
 
 	cmd.MarkFlagFilename("credentials", "kubeconfig")
 
@@ -161,6 +169,15 @@ func RunCmdRouter(f *clientcmd.Factory, cmd *cobra.Command, out io.Writer, cfg *
 	ports, err := app.ContainerPortsFromString(cfg.Ports)
 	if err != nil {
 		glog.Fatal(err)
+	}
+
+	// For the host networking case, ensure the ports match.
+	if cfg.HostNetwork {
+		for i := 0; i < len(ports); i++ {
+			if ports[i].ContainerPort != ports[i].HostPort {
+				return cmdutil.UsageError(cmd, "For host networking mode, please ensure that the container [%v] and host [%v] ports match", ports[i].ContainerPort, ports[i].HostPort)
+			}
+		}
 	}
 
 	if cfg.StatsPort > 0 {
@@ -207,7 +224,7 @@ func RunCmdRouter(f *clientcmd.Factory, cmd *cobra.Command, out io.Writer, cfg *
 		return fmt.Errorf("error getting client: %v", err)
 	}
 
-	p, output, err := cmdutil.PrinterForCommand(cmd)
+	_, output, err := cmdutil.PrinterForCommand(cmd)
 	if err != nil {
 		return fmt.Errorf("unable to configure printer: %v", err)
 	}
@@ -283,6 +300,8 @@ func RunCmdRouter(f *clientcmd.Factory, cmd *cobra.Command, out io.Writer, cfg *
 			"STATS_PASSWORD":           cfg.StatsPassword,
 		}
 
+		updatePercent := int(-10)
+
 		objects := []runtime.Object{
 			&dapi.DeploymentConfig{
 				ObjectMeta: kapi.ObjectMeta{
@@ -293,12 +312,17 @@ func RunCmdRouter(f *clientcmd.Factory, cmd *cobra.Command, out io.Writer, cfg *
 					{Type: dapi.DeploymentTriggerOnConfigChange},
 				},
 				Template: dapi.DeploymentTemplate{
+					Strategy: dapi.DeploymentStrategy{
+						Type:          dapi.DeploymentStrategyTypeRolling,
+						RollingParams: &dapi.RollingDeploymentStrategyParams{UpdatePercent: &updatePercent},
+					},
 					ControllerTemplate: kapi.ReplicationControllerSpec{
 						Replicas: cfg.Replicas,
 						Selector: label,
 						Template: &kapi.PodTemplateSpec{
 							ObjectMeta: kapi.ObjectMeta{Labels: label},
 							Spec: kapi.PodSpec{
+								HostNetwork:        cfg.HostNetwork,
 								ServiceAccountName: cfg.ServiceAccount,
 								NodeSelector:       nodeSelector,
 								Containers: []kapi.Container{
@@ -331,7 +355,7 @@ func RunCmdRouter(f *clientcmd.Factory, cmd *cobra.Command, out io.Writer, cfg *
 		list := &kapi.List{Items: objects}
 
 		if output {
-			if err := p.PrintObj(list, out); err != nil {
+			if err := f.PrintObject(cmd, list, out); err != nil {
 				return fmt.Errorf("Unable to print object: %v", err)
 			}
 			return nil

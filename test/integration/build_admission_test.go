@@ -5,8 +5,8 @@ package integration
 import (
 	"testing"
 
-	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	kapierror "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
+	kapi "k8s.io/kubernetes/pkg/api"
+	kapierror "k8s.io/kubernetes/pkg/api/errors"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
 	buildapi "github.com/openshift/origin/pkg/build/api"
@@ -38,7 +38,7 @@ func TestPolicyBasedRestrictionOfBuildStrategies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	joeClient, err := testutil.GetClientForUser(*clusterAdminClientConfig, "joe")
+	joeClient, _, _, err := testutil.GetClientForUser(*clusterAdminClientConfig, "joe")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestPolicyBasedRestrictionOfBuildConfigStrategies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	joeClient, err := testutil.GetClientForUser(*clusterAdminClientConfig, "joe")
+	joeClient, _, _, err := testutil.GetClientForUser(*clusterAdminClientConfig, "joe")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

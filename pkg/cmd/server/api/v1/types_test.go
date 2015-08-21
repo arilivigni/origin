@@ -3,9 +3,9 @@ package v1
 import (
 	"testing"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 	"github.com/ghodss/yaml"
+	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util"
 
 	internal "github.com/openshift/origin/pkg/cmd/server/api"
 )
@@ -33,6 +33,7 @@ podManifestConfig:
   path: ""
 servingInfo:
   bindAddress: ""
+  bindNetwork: ""
   certFile: ""
   clientCA: ""
   keyFile: ""
@@ -52,6 +53,7 @@ assetConfig:
   publicURL: ""
   servingInfo:
     bindAddress: ""
+    bindNetwork: ""
     certFile: ""
     clientCA: ""
     keyFile: ""
@@ -60,6 +62,7 @@ assetConfig:
 corsAllowedOrigins: null
 dnsConfig:
   bindAddress: ""
+  bindNetwork: ""
 etcdClientInfo:
   ca: ""
   certFile: ""
@@ -70,11 +73,13 @@ etcdConfig:
   peerAddress: ""
   peerServingInfo:
     bindAddress: ""
+    bindNetwork: ""
     certFile: ""
     clientCA: ""
     keyFile: ""
   servingInfo:
     bindAddress: ""
+    bindNetwork: ""
     certFile: ""
     clientCA: ""
     keyFile: ""
@@ -234,6 +239,7 @@ serviceAccountConfig:
   publicKeyFiles: null
 servingInfo:
   bindAddress: ""
+  bindNetwork: ""
   certFile: ""
   clientCA: ""
   keyFile: ""

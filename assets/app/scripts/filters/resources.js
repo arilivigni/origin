@@ -339,7 +339,7 @@ angular.module('openshiftConsole')
     // Scenario - Failed Container
     // Check if the terminated container exited with a non-zero exit code
     var isFailed = function(containerStatus) {
-      return containerStatus.state.termination && containerStatus.state.termination.exitCode !== 0;
+      return containerStatus.state.terminated && containerStatus.state.terminated.exitCode !== 0;
     };
 
     // Scenario - Unprepared Container
@@ -520,5 +520,29 @@ angular.module('openshiftConsole')
         Logger.error("Failed to parse encoded deployment config", e);
         return [];
       }
+    };
+  })
+  .filter('desiredReplicas', function() {
+    return function(rc) {
+      if (!rc || !rc.spec) {
+        return 0;
+      }
+
+      // If unset, the default is 1.
+      if (rc.spec.replicas === undefined) {
+        return 1;
+      }
+
+      return rc.spec.replicas;
+    };
+  })
+  .filter('serviceImplicitDNSName', function() {
+    return function(service) {
+      if (!service || !service.metadata || !service.metadata.name || !service.metadata.namespace) {
+        return '';
+      }
+
+      // cluster.local suffix is customizable, so leave it off. <name>.<namespace>.svc resolves.
+      return service.metadata.name + '.' + service.metadata.namespace + '.svc';
     };
   });

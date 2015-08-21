@@ -15,11 +15,12 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	kerrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
-	kcmdutil "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd/util"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
+	kerrors "k8s.io/kubernetes/pkg/api/errors"
+	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	"k8s.io/kubernetes/pkg/util"
 
 	"github.com/openshift/origin/pkg/cmd/server/admin"
+	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/start/kubernetes"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 )
@@ -33,8 +34,8 @@ type AllInOneOptions struct {
 	MasterConfigFile string
 	NodeConfigFile   string
 	PrintIP          bool
-
-	Output io.Writer
+	Output           io.Writer
+	DisabledFeatures []string
 }
 
 const allInOneLong = `
@@ -62,6 +63,11 @@ You may also pass --kubeconfig=<path> to connect to an external Kubernetes clust
 func NewCommandStartAllInOne(fullName string, out io.Writer) (*cobra.Command, *AllInOneOptions) {
 	options := &AllInOneOptions{Output: out}
 
+	switch fullName {
+	case "atomic-enterprise":
+		options.DisabledFeatures = configapi.AtomicDisabledFeatures
+	}
+
 	cmds := &cobra.Command{
 		Use:   "start",
 		Short: "Launch all-in-one server",
@@ -81,7 +87,7 @@ func NewCommandStartAllInOne(fullName string, out io.Writer) (*cobra.Command, *A
 			if err := options.StartAllInOne(); err != nil {
 				if kerrors.IsInvalid(err) {
 					if details := err.(*kerrors.StatusError).ErrStatus.Details; details != nil {
-						fmt.Fprintf(c.Out(), "Invalid %s %s\n", details.Kind, details.Name)
+						fmt.Fprintf(c.Out(), "error: Invalid %s %s\n", details.Kind, details.Name)
 						for _, cause := range details.Causes {
 							fmt.Fprintf(c.Out(), "  %s: %s\n", cause.Field, cause.Message)
 						}
@@ -237,7 +243,7 @@ func (o AllInOneOptions) StartAllInOne() error {
 		fmt.Fprintf(o.Output, "%s\n", host)
 		return nil
 	}
-	masterOptions := MasterOptions{o.MasterArgs, o.CreateCerts, o.MasterConfigFile, o.Output}
+	masterOptions := MasterOptions{o.MasterArgs, o.CreateCerts, o.MasterConfigFile, o.Output, o.DisabledFeatures}
 	if err := masterOptions.RunMaster(); err != nil {
 		return err
 	}

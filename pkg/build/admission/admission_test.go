@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/admission"
-	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	apierrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/auth/user"
-	ktestclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client/testclient"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/admission"
+	kapi "k8s.io/kubernetes/pkg/api"
+	apierrors "k8s.io/kubernetes/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/auth/user"
+	ktestclient "k8s.io/kubernetes/pkg/client/testclient"
+	"k8s.io/kubernetes/pkg/runtime"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
 	buildapi "github.com/openshift/origin/pkg/build/api"
@@ -96,9 +96,9 @@ func fakeUser() user.Info {
 func fakeClient(expectedResource string, reviewResponse *authorizationapi.SubjectAccessReviewResponse) client.Interface {
 	emptyResponse := &authorizationapi.SubjectAccessReviewResponse{}
 	return &testclient.Fake{
-		ReactFn: func(action ktestclient.FakeAction) (runtime.Object, error) {
-			if action.Action == "create-subjectAccessReview" {
-				review, ok := action.Value.(*authorizationapi.SubjectAccessReview)
+		ReactFn: func(action ktestclient.Action) (runtime.Object, error) {
+			if action.Matches("create", "subjectaccessreviews") {
+				review, ok := action.(ktestclient.CreateAction).GetObject().(*authorizationapi.SubjectAccessReview)
 				if !ok {
 					return emptyResponse, fmt.Errorf("unexpected object received: %#v", review)
 				}

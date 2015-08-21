@@ -13,12 +13,12 @@ import (
 	"github.com/emicklei/go-restful/swagger"
 	"github.com/golang/glog"
 
-	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/rest"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/apiserver"
-	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
-	kmaster "github.com/GoogleCloudPlatform/kubernetes/pkg/master"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
+	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/rest"
+	"k8s.io/kubernetes/pkg/apiserver"
+	kclient "k8s.io/kubernetes/pkg/client"
+	kmaster "k8s.io/kubernetes/pkg/master"
+	"k8s.io/kubernetes/pkg/util"
 
 	"github.com/openshift/origin/pkg/api/latest"
 	"github.com/openshift/origin/pkg/api/v1"
@@ -56,6 +56,7 @@ import (
 	routeregistry "github.com/openshift/origin/pkg/route/registry/route"
 	clusternetworketcd "github.com/openshift/origin/pkg/sdn/registry/clusternetwork/etcd"
 	hostsubnetetcd "github.com/openshift/origin/pkg/sdn/registry/hostsubnet/etcd"
+	netnamespaceetcd "github.com/openshift/origin/pkg/sdn/registry/netnamespace/etcd"
 	"github.com/openshift/origin/pkg/service"
 	templateregistry "github.com/openshift/origin/pkg/template/registry"
 	templateetcd "github.com/openshift/origin/pkg/template/registry/etcd"
@@ -169,7 +170,7 @@ func (c *MasterConfig) Run(protected []APIInstaller, unprotected []APIInstaller)
 		handler = apiserver.CORS(handler, origins, nil, nil, "true")
 	}
 
-	if c.Options.AssetConfig != nil {
+	if c.WebConsoleEnabled() {
 		handler = assetServerRedirect(handler, c.Options.AssetConfig.PublicURL)
 	}
 
@@ -213,14 +214,14 @@ func (c *MasterConfig) Run(protected []APIInstaller, unprotected []APIInstaller)
 				ClientAuth: tls.RequestClientCert,
 				ClientCAs:  c.ClientCAs,
 			}
-			glog.Fatal(server.ListenAndServeTLS(c.Options.ServingInfo.ServerCert.CertFile, c.Options.ServingInfo.ServerCert.KeyFile))
+			glog.Fatal(cmdutil.ListenAndServeTLS(server, c.Options.ServingInfo.BindNetwork, c.Options.ServingInfo.ServerCert.CertFile, c.Options.ServingInfo.ServerCert.KeyFile))
 		} else {
 			glog.Fatal(server.ListenAndServe())
 		}
 	}, 0)
 
 	// Attempt to verify the server came up for 20 seconds (100 tries * 100ms, 100ms timeout per try)
-	cmdutil.WaitForSuccessfulDial(c.TLS, "tcp", c.Options.ServingInfo.BindAddress, 100*time.Millisecond, 100*time.Millisecond, 100)
+	cmdutil.WaitForSuccessfulDial(c.TLS, c.Options.ServingInfo.BindNetwork, c.Options.ServingInfo.BindAddress, 100*time.Millisecond, 100*time.Millisecond, 100)
 
 	// Create required policy rules if needed
 	c.ensureComponentAuthorizationRules()
@@ -256,7 +257,7 @@ func (c *MasterConfig) InstallProtectedAPI(container *restful.Container) []strin
 		if err := c.api_v1(storage).InstallREST(container); err != nil {
 			glog.Fatalf("Unable to initialize v1 API: %v", err)
 		}
-		messages = append(messages, fmt.Sprintf("Started Origin API at %%s%s (experimental)", OpenShiftAPIPrefixV1))
+		messages = append(messages, fmt.Sprintf("Started Origin API at %%s%s", OpenShiftAPIPrefixV1))
 		currentAPIVersions = append(currentAPIVersions, OpenShiftAPIV1)
 	}
 
@@ -310,6 +311,7 @@ func (c *MasterConfig) GetRestStorage() map[string]rest.Storage {
 
 	routeEtcd := routeetcd.New(c.EtcdHelper)
 	hostSubnetStorage := hostsubnetetcd.NewREST(c.EtcdHelper)
+	netNamespaceStorage := netnamespaceetcd.NewREST(c.EtcdHelper)
 	clusterNetworkStorage := clusternetworketcd.NewREST(c.EtcdHelper)
 
 	userStorage := useretcd.NewREST(c.EtcdHelper)
@@ -413,8 +415,8 @@ func (c *MasterConfig) GetRestStorage() map[string]rest.Storage {
 		"imageStreamTags":     imageStreamTagStorage,
 
 		"deploymentConfigs":         deployConfigStorage,
-		"generateDeploymentConfigs": deployconfiggenerator.NewREST(deployConfigGenerator, c.EtcdHelper.Codec),
-		"deploymentConfigRollbacks": deployrollback.NewREST(deployRollbackClient, c.EtcdHelper.Codec),
+		"generateDeploymentConfigs": deployconfiggenerator.NewREST(deployConfigGenerator, c.EtcdHelper.Codec()),
+		"deploymentConfigRollbacks": deployrollback.NewREST(deployRollbackClient, c.EtcdHelper.Codec()),
 
 		"processedTemplates": templateregistry.NewREST(),
 		"templates":          templateetcd.NewREST(c.EtcdHelper),
@@ -425,6 +427,7 @@ func (c *MasterConfig) GetRestStorage() map[string]rest.Storage {
 		"projectRequests": projectRequestStorage,
 
 		"hostSubnets":     hostSubnetStorage,
+		"netNamespaces":   netNamespaceStorage,
 		"clusterNetworks": clusterNetworkStorage,
 
 		"users":                userStorage,

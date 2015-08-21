@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	kubecmd "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd"
+	kubecmd "k8s.io/kubernetes/pkg/kubectl/cmd"
 
 	"github.com/openshift/origin/pkg/cmd/cli/cmd"
 	"github.com/openshift/origin/pkg/cmd/cli/policy"
@@ -52,9 +52,8 @@ created for you.
 
 You can easily switch between multiple projects using '%[1]s project <projectname>'.`
 
-func NewCommandCLI(name, fullName string) *cobra.Command {
+func NewCommandCLI(name, fullName string, out io.Writer) *cobra.Command {
 	in := os.Stdin
-	out := os.Stdout
 	errout := os.Stderr
 
 	// Main command
@@ -102,7 +101,7 @@ func NewCommandCLI(name, fullName string) *cobra.Command {
 				cmd.NewCmdDescribe(fullName, f, out),
 				cmd.NewCmdEdit(fullName, f, out),
 				cmd.NewCmdEnv(fullName, f, in, out),
-				cmd.NewCmdVolume(fullName, f, out),
+				cmd.NewCmdVolume(fullName, f, out, errout),
 				cmd.NewCmdLabel(fullName, f, out),
 				cmd.NewCmdExpose(fullName, f, out),
 				cmd.NewCmdStop(fullName, f, out),
@@ -194,7 +193,7 @@ func CommandFor(basename string) *cobra.Command {
 	case "kubectl":
 		cmd = NewCmdKubectl(basename, out)
 	default:
-		cmd = NewCommandCLI(basename, basename)
+		cmd = NewCommandCLI(basename, basename, out)
 	}
 
 	if cmd.UsageFunc() == nil {
